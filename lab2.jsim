@@ -1,0 +1,122 @@
+*******************************************************************************         
+* All lines that begin with * are comments. You may safely remove them for your         
+* own submissions, but as with any programming exercise, please put in your own         
+* comments to explain your code!                                                        
+*                                                                                       
+* In your own submissions, make sure to replace this comment block with your            
+* names, in the following format:                                                       
+*                                                                                       
+* LAB #2                                                                                
+* Team AMP                                                                              
+*                                                                                       
+* - Chua, Phoebe                                                                        
+* - Mabini, Ramon Jr.                                                                   
+* - Verzosa, Matthew                                                                    
+*                                                                                       
+* Make sure your names are in alphabetical order, Last Name before First Name.          
+* You will get deductions if you don't strictly follow this format.                     
+*******************************************************************************         
+                                                                                        
+*******************************************************************************         
+* The following .include lines are necessary for all your CSCI 50.02 JSim               
+* exercises. These work like your Java import statement.                                
+*******************************************************************************         
+                                                                                        
+.include "8clocks.jsim"                                                                 
+.include "nominal.jsim"                                                                 
+.include "stdcell.jsim"                                                                                                                                               
+                                                                                        
+*******************************************************************************         
+* FX SUBCIRCUIT                                                                         
+* Function: OUT = AB + CDE + FG                                                         
+*                                                                                       
+* De Morgan's law gives:                                                                
+*   OUT = !(!(AB) * !(CDE) * !(FG))                                                     
+*                                                                                       
+* We use NAND gates because the function is already in sum-of-products form.            
+* De Morgan's law converts it to a NAND-NAND form without adding inverters.             
+*                                                                                       
+* The longest path is from c, d, or e through two NAND3 gates:                          
+* 0.05 ns + 0.05 ns = 0.10 ns. The a, b, f, and g paths take 0.08 ns.                   
+*                                                                                       
+* In stdcell.jsim, NAND2 and NAND3 have lower propagation delays than NOR2              
+* and NOR3. Since the NAND implementation has the lower t_pd, we use it.                
+*                                                                                       
+*******************************************************************************         
+                                                                                        
+.subckt fx a b c d e f g out                                                            
+xfx_nab a b not_ab nand2                                                                
+xfx_ncde c d e not_cde nand3                                                            
+xfx_nfg f g not_fg nand2                                                                
+xfx_out not_ab not_cde not_fg out nand3                                                 
+.ends                                                                                   
+                                                                                        
+                                                                                        
+*******************************************************************************         
+* FULL-ADDER SUBCIRCUIT                                                                 
+* From the truth table using a K-map:                                                   
+*                                                                                       
+* Sum = ((a'b'carry_in)' * (a'bcarry_in')' * (ab'carry_in')'                            
+*        * (abcarry_in)')'                                                              
+*                                                                                       
+* The propagation delay of the NAND implementation is 0.14 ns, obtained by              
+* adding 0.02 ns from the inverter, 0.05 ns from NAND3, and 0.07 ns from NAND4.         
+*                                                                                       
+* XOR gates can also be used to implement a XOR b XOR carry_in, but using two           
+* XOR2 gates results in a propagation delay of 0.28 ns.                                 
+*                                                                                       
+* A lower propagation delay means a faster output response.                             
+* Since the t_pd of the NAND implementation is lower than that of the XOR               
+* implementation, we use the NAND implementation.                                       
+*                                                                                       
+* Carry = ab + acarry_in + bcarry_in                                                    
+*******************************************************************************         
+                                                                                    
+.subckt fa a b carry_in sum carry                                                       
+xfa_inv_a a not_a inverter                                                              
+xfa_inv_b b not_b inverter                                                              
+xfa_inv_c carry_in not_c inverter                                                       
+xfa_sum_t1 not_a not_b carry_in sum_t1 nand3                                            
+xfa_sum_t2 not_a b not_c sum_t2 nand3                                                   
+xfa_sum_t3 a not_b not_c sum_t3 nand3                                                   
+xfa_sum_t4 a b carry_in sum_t4 nand3                                                    
+xfa_sum sum_t1 sum_t2 sum_t3 sum_t4 sum nand4                                           
+xfa_carry_ab a b not_ab nand2                                                           
+xfa_carry_ac a carry_in not_ac nand2                                                    
+xfa_carry_bc b carry_in not_bc nand2                                                    
+xfa_carry not_ab not_ac not_bc carry nand3                                              
+.ends                                                                                   
+                                                                                                                                                                            
+*******************************************************************************         
+* INSTANTIATE FX                                                                        
+* clk1 -> a, clk2 -> b, clk3 -> c, clk4 -> d                                            
+* clk5 -> e, clk6 -> f, clk7 -> g, fx_out -> out                                        
+*******************************************************************************         
+xfx_test clk1 clk2 clk3 clk4 clk5 clk6 clk7 fx_out fx                                   
+                                                                                        
+*******************************************************************************         
+* INSTANTIATE FULL ADDER                                                                
+* clk1 -> a, clk2 -> b, clk3 -> carry_in                                                
+* fa_sum -> sum, fa_carry -> carry                                                      
+*******************************************************************************         
+xfa_test clk1 clk2 clk3 fa_sum fa_carry fa                                              
+                                                                                                                                       
+*******************************************************************************         
+* PLOTS                                                                                 
+*******************************************************************************         
+                                                                                        
+.tran 80ns                                                                              
+                                                                                        
+* Plot Inputs                                                                           
+.plot clk1                                                                              
+.plot clk2                                                                              
+.plot clk3                                                                              
+.plot clk4                                                                              
+.plot clk5                                                                              
+.plot clk6                                                                              
+.plot clk7                                                                              
+                                                                                        
+* Plot Outputs                                                                          
+.plot fx_out                                                                            
+.plot fa_sum                                                                            
+.plot fa_carry  
