@@ -1,0 +1,87 @@
+*******************************************************************************         
+* All lines that begin with * are comments. You may safely remove them for your         
+* own submissions, but as with any programming exercise, please put in your own         
+* comments to explain your code!                                                        
+*                                                                                       
+* In your own submissions, make sure to replace this comment block with your            
+* names, in the following format:                                                       
+*                                                                                       
+* LAB #2                                                                                
+* Team AMP                                                                              
+*                                                                                       
+* - Chua, Phoebe                                                                        
+* - Mabini, Ramon Jr.                                                                   
+* - Verzosa, Matthew                                                                    
+*                                                                                       
+* Make sure your names are in alphabetical order, Last Name before First Name.          
+* You will get deductions if you don't strictly follow this format.                     
+*******************************************************************************         
+
+*******************************************************************************
+* The following .include lines are necessary for all your CSCI 50.02 JSim
+* exercises. These work like your Java import statement.
+*******************************************************************************
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+*******************************************************************************
+* SUBCIRCUIT add32 for 32-BIT ADDER
+*******************************************************************************
+* Define 1-bit full adder 
+.subckt fa a b cin sum cout
+Xxor1 a b t1 xor2
+Xnand1 cin t1 t2 nand2
+Xnand2 a b t3 nand2
+Xxor2 t1 cin sum xor2
+Xnand3 t2 t3 cout nand2
+.ends
+
+* Connect the carry-out of each 1-bit full adder to the carry-in of the next bit
+* to create a 32-bit ripple-carry adder
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+Xsum a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+.ends
+
+*******************************************************************************
+* INSTANTIATION
+* When creating digital waveforms for testing, the values of a and b are
+* displayed according to the provided test cases (e.g. 0x00000000 + 0x00000000)
+* + 0x00000000 for a and + 0x00000000 for b
+*******************************************************************************
+Xsum a[31:0] b[31:0] 0 sum[31:0] c31 c30 add32
+
+Wa a[31:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
++ 0x00000000 0x55555555 0x00000000 0x55555555 0xFFFFFFFF 
++ 0xAAAAAAAA 0x00000000 0xAAAAAAAA 0x00000001 0xFFFFFFFF 
+
+Wb b[31:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
++ 0x00000000 0x00000000 0x55555555 0x55555555 0xFFFFFFFF
++ 0x00000000 0xAAAAAAAA 0xAAAAAAAA 0xFFFFFFFF 0x00000001
+
+*******************************************************************************
+* PLOTS
+*******************************************************************************
+.tran 200ns
+.plot a[31:0]
+.plot b[31:0]
+.plot sum[31:0]
+
+*******************************************************************************
+* SPOLIER EXPLANATION
+*******************************************************************************
+* i and j have the worst-case carry propagation. Adding 1 to 0xFFFFFFFF creates
+* a carry at the least significant bit. This carry has to ripple through all
+* 32 bits before the final carry-out becomes valid. Since each 1-bit full adder
+* takes time to propagate the carry to the next bit, this results in a maximum
+* propagation delay for the 32-bit ripple-carry adder. 
+
+* In contrast, 0xFFFFFFFF + 0xFFFFFFFF generates a carry at every bit.
+* Therefore, the carry does not need to propagate through all 32 stages before
+* the carry outputs are determined.
+
+* Similarly, 0xAAAAAAAA + 0xAAAAAAAA generates carries at specific bit positions
+* rather han havig a carry to propagate through all 32 stages. 
+
+* These e and h cases have shorter carry-propgation delays than i and j cases.
