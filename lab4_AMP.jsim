@@ -1,0 +1,213 @@
+*******************************************************************************
+
+* LAB #4
+* AMP
+* - Chua, Phoebe
+* - Mabini, Ammon
+* - Verzosa, Matthew
+
+*******************************************************************************
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+*******************************************************************************
+
+.subckt fa a b c_in sum c_out
+Xxor1 a b t1 xor2
+Xnand1 c_in t1 t2 nand2
+Xnand2 a b t3 nand2
+Xxor2 t1 c_in sum xor2
+Xnand3 t2 t3 c_out nand2
+.ends
+
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+Xsum a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+.ends
+
+*******************************************************************************
+* Your new counter32 subcircuit code should go here.
+*******************************************************************************
+
+.subckt counter32 reset a[31:0] f[31:0] clk
+.connect 0 0#32
+Xadd32 a[31:0] f[31:0] 0 sum[31:0] cout[31:30] add32
+Xmux reset#32 sum[31:0] 0#32 z[31:0] mux2
+Xdreg z[31:0] clk#32 f[31:0] dreg
+.ends
+
+*******************************************************************************
+* Finally, it's time to simulate.
+* This circuit block instantiates the counter32 circuit that you just wrote.
+* We pass it a single-bit reset signal, a 32-bit increment value, a 32-bit
+* register, and a clock signal.
+*******************************************************************************
+Xcounter32 reset incr[31:0] reg1[31:0] clk1 counter32
+
+* Experiment
+* Making the clocks. The clocks in 8clocks.jsim stop at clk1 (10ns), so we define
+* faster ones. Each is a "pulse" source that repeats forever:
+*   pulse(low, high, tdelay, trise, tfall, pw)
+* One cycle is: stay low for tdelay, rise for trise, stay high for pw, then fall
+* for tfall, so
+*   period = tdelay + trise + pw + tfall
+
+* Uncomment for experiment
+* * period 5 ns
+* Vfast1 fast1 0 pulse(0,5,2.4ns,.1ns,.1ns,2.4ns)  
+* Xfcounter1 reset incr[31:0] reg2[31:0] fast1 counter32
+* * period 4 ns
+* Vfast2 fast2 0 pulse(0,5,1.9ns,.1ns,.1ns,1.9ns)   
+* Xfcounter2 reset incr[31:0] reg3[31:0] fast2 counter32
+* * period 3 ns
+* Vfast3 fast3 0 pulse(0,5,1.4ns,.1ns,.1ns,1.4ns)   
+* Xfcounter3 reset incr[31:0] reg4[31:0] fast3 counter32
+* * period 2 ns
+* Vfast4 fast4 0 pulse(0,5,.9ns,.1ns,.1ns,.9ns)     
+* Xfcounter4 reset incr[31:0] reg5[31:0] fast4 counter32
+
+*******************************************************************************
+* This "reset" waveform sets up a reset signal that has a delayed start
+* and then goes to the next value every 50ns.
+* The values "1 0 0 0 1 0" indicate that the reset signal only turns on twice.
+* (But at which times?)
+*******************************************************************************
+Wreset reset nrz(0, 5, 50ns, 14.8ns, 0.001ns, 0.001ns)
++ 1 0 0 0 1 0
+
+*******************************************************************************
+* This "incr" waveform sets up a increment value for your counter32 circuit.
+* Note that it does NOT have a delayed start. The values "0 1 3 -1" roughly
+* translate to the following "commands" in Java-like syntax:
+*   reg += 0;  //  0 means don't touch the value
+*   reg++;     //  1 means increment by 1
+*   reg += 3;  //  3 means increment by 3
+*   reg--;     // -1 means decrement by 1
+* But note that these "commands" will happen EVERY positive clock edge (and
+* only when your reset signal is off)!
+*******************************************************************************
+Wincr incr[31:0] nrz(0, 5, 50ns, 0ns, 0.001ns, 0.001ns)
++ 0 1 3 -1
+
+*******************************************************************************
+* Plot our reset waveform, our incr waveform, clk1, and your 32-bit register.
+* Note: sd() displays a range of nodes as a signed decimal (instead of hex)
+*******************************************************************************
+.tran 300ns
+.plot reset
+.plot sd(incr[31:0])
+.plot clk1
+.plot sd(reg1[31:0])
+
+*Uncomment for experiment
+* .plot fast1
+* .plot sd(reg2[31:0])
+* .plot fast2
+* .plot sd(reg3[31:0])
+* .plot fast3
+* .plot sd(reg4[31:0])
+* .plot fast4
+* .plot sd(reg5[31:0])
+
+*******************************************************************************
+* Discussion Questions
+*******************************************************************************
+
+* A. Explain the behavior of the 32-bit register output lines, reg[31:0], as 
+* it is incrementing, decrementing, and resetting. In particular, explain the 
+* significant delay between when the reset/incr[31:0] values change and when 
+* the output displays an updated value
+
+* The plotted reg[31:0] is the output of the 32 dreg flip-flops, NOT the
+* output of the adder. Inside counter32, the current register value f[31:0]
+* feeds back into Xadd32 together with incr[31:0]. In each full adder, Xxor1
+* computes a XOR b, then Xxor2 XORs that result with the incoming carry to
+* produce one sum bit. Xnand1, Xnand2, and Xnand3 produce the carry-out, which
+* feeds the next higher bit. Thus Xadd32 forms the 32-bit next value f + incr
+* through a ripple-carry path.
+*
+* The next value then passes through 32 mux2 cells. When reset = 0, each mux
+* selects its adder sum bit. when reset = 1, it selects the zero line tied to
+* ground. The mux outputs z[31:0] go into the dreg bank. Since dreg copies D
+* to Q only on a rising edge of clk1, changes in incr or reset can affect
+* the mux inputs immediately but cannot update reg until a clock edge. Reset
+* is therefore synchronous. The adder and mux must also settle before that
+* edge, and the new Q appears a short clock-to-Q delay afterward.
+*
+* Behavior of reg[31:0]:
+* Incrementing. Each rising edge stores reg + incr (reg++ for incr = 1,
+*               reg += 3 for incr = 3), so reg moves in steps of incr,
+*                one step per clock period (10ns for clk1).
+* Decrementing. incr = -1 is all 1s in 32-bit two's complement, so the same
+*               adder computes reg + (-1); the carry out of bit 31 is
+*               discarded and reg counts down by 1 per edge.
+* Resetting. While reset = 1, the mux feeds 0 to every dreg, so reg is
+*            loaded with 0 at each edge and incr is ignored.  
+*  
+* Why is there such a big delay between an input change and the output? Note
+* that reg can only change at a rising edge of clk1 (about 5, 15, 25, ... ns),
+* so an input that changes just after an edge has to wait almost a whole
+* 10ns period. There are also other things in the way:
+* 1. the edge right after reset rises (14.8ns) is at about 15ns, which is
+*     too soon for reset to get through the mux, so that edge misses it.
+*     Reset is only seen at the next edge (about 25ns).
+* 2. incr changes from 0 to 1 at 50ns, but reset is still high until 64.8ns
+*     and overrides it. The edge at about 65ns still loads 0 (reset has only
+*     just dropped), so the first 1 appears at about 75ns.
+* 3. After the edge, the new value is only visible a short clock-to-Q
+*     delay later. Before the edge, the adder's ripple-carry result and the
+*     mux must have settled, or the wrong value is stored.
+*
+* The green region at the start is the
+* register's undefined initial value before the first edge with reset high.
+* Persistent wrong values later can indicate that the ripple-carry result did
+* not settle before a sampling edge.
+
+*******************************************************************************
+
+* B. What is stopping you from using a super fast clock to make a super-fast counter?
+*
+* The clock only decides WHEN the register samples its input. it does not make
+* the logic that computes that input any faster. So the counter can tick only as
+* fast as the slowest path feeding the register can finish. The experiment 
+* tests this by running the same counter32 at faster and faster clocks.
+*
+* [Please see experiment parts]
+*
+* Results
+*   clock   period   count correct?
+*   clk1    10 ns    Yes
+*   fast1    5 ns    No
+*   fast2    4 ns    Yes
+*   fast3    3 ns    No
+*   fast4    2 ns    No
+*
+* The counter counted correctly at 10ns and 4ns. At 5ns, 3ns and 2ns the plot
+* shows wrong values such as very large negative numbers. Once one wrong
+* value is stored it is fed back into the adder, so the errors carry forward.
+*
+* In a 32-bit ripple-carry adder, the carry has to pass
+* through about two gates per bit (Xnand1 then Xnand3 in each fa), so the delays
+* add up along the whole carry chain. For the register to store a finished
+* value, each clock period must cover:
+* period >= clk-to-q delay + adder (carry chain) delay + mux delay + setup time
+* The longest such path is the circuit's critical path.
+*
+* Why does 4ns work when 5ns fails?
+* The fact that the 4 ns clock works while the 5 ns clock fails does not necessarily 
+* mean that 4 ns is a safer clock period than 5 ns. The reset and incr waveforms 
+* change at fixed times that are not synchronized with the different clock signals. 
+* Therefore, the amount of time available for the adder and mux to settle before 
+* a particular sampling edge depends on the relative phase between the input transition 
+* and the clock edge. A clock with a shorter period can occasionally produce a correct 
+* value at a particular transition simply because its next sampling edge happens to 
+* occur at a favorable time. To determine the true maximum clock frequency, the circuit's 
+* propagation and setup/hold timing should be analyzed rather than relying on a few 
+* observed clock periods.
+*
+* A faster clock does not make the counter faster. past a limit it
+* makes the counter wrong. In this particular simulation, the 10 ns clock 
+* produced the expected behavior, while the 5 ns, 3 ns, and 2 ns experiments 
+* showed incorrect values. This indicates that the counter is approaching or 
+* exceeding its timing limit as the clock period decreases.
