@@ -1,0 +1,62 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| This sample .uasm program processes an array of integers and computes
+| their total sum.
+|
+| Important notes:
+| 1. As usual, replace this comment block with the specific lab number that
+|    you are submitting, along with your group name and member names in
+|    lastname-firstname alphabetical order.
+| 2. For Lab 7, you are expected to mark the data portions of your program
+|    using labels, as demonstrated below using the labels INPUT: and OUTPUT:.
+| 3. While this sample program should work fine with most user inputs, there
+|    is an edge case that will cause this program to fail catastrophically.
+|    (Can you figure it out?)
+|
+| Happy hacking! - eric
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm          | include the standard predefined macros
+
+| Fibonacci Sequence
+        LD(r31, INPUT, r0)  | r0 = N
+        CMPLEC(r0, 0, r4)   | N <= 0
+        BT(r4, DONE)
+
+        CMOVE(0, r1)        | r1 = F(0) = 0
+        CMOVE(1, r2)        | r2 = F(1) = 1
+        ST(r1, FIBO, r31)   | FIBO[0] = 0
+
+        CMPLEC(r0, 1, r4)   | N <= 1 return N (base case)
+        BT(r4, DONE)
+
+        ST(r2, FIBO+4, r31) | FIBO[1] = 1
+        CMOVE(2, r3)        | r3 = i = 2
+
+LOOP:   CMPLT(r3, r0, r4)   | r4 = i < N
+        BF(r4, DONE)        | done when r4 is false
+        ADD(r1, r2, r5)     | r5 = F(i)
+        SHLC(r3, 2, r6)     | r6 = 4*i
+        ST(r5, FIBO, r6)    | FIBO[i] = F(i)
+        MOVE(r2, r1)        | r1 = r2
+        MOVE(r5, r2)        | r2 = r5
+        ADDC(r3, 1, r3)     | i++
+        BR(LOOP)
+
+DONE:   HALT()
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+. = 0x100
+
+INPUT:  LONG(7)             | <-- length of the array (N)
+
+FIBO:   LONG(0)
+        LONG(0)
+        LONG(0)
+        LONG(0)
+        LONG(0)
+        LONG(0)
+        LONG(0)

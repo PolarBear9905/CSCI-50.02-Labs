@@ -1,0 +1,64 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| This sample .uasm program processes an array of integers and computes
+| their total sum.
+|
+| Important notes:
+| 1. As usual, replace this comment block with the specific lab number that
+|    you are submitting, along with your group name and member names in
+|    lastname-firstname alphabetical order.
+| 2. For Lab 7, you are expected to mark the data portions of your program
+|    using labels, as demonstrated below using the labels INPUT: and OUTPUT:.
+| 3. While this sample program should work fine with most user inputs, there
+|    is an edge case that will cause this program to fail catastrophically.
+|    (Can you figure it out?)
+|
+| Happy hacking! - eric
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm          | include the standard predefined macros
+
+| In-Place Array Sorting
+                LD(r31, ARRAY, r0)  | r0 = array length (N)
+                CMOVE(1, r1)        | r1 = i = 1 
+
+OUTER_LOOP:     CMPLT(r1, r0, r3)   | r3 = i < N
+                BF(r3, DONE)        | done when r3 is false
+
+                ADDC(r1, 1,r2)      | r2 = j = i + 1
+
+INNER_LOOP:     CMPLE(r2, r0, r3)   | r3 = j <= N
+                BF(r3, NEXT_I)      | go to NEXT_I when r3 is false
+
+                SHLC(r1, 2, r4)     | r4 = 4*i
+                SHLC(r2, 2, r5)     | r5 = 4*j
+                LD(r4, ARRAY, r6)   | r6 = arr[i]
+                LD(r5, ARRAY, r7)   | r7 = arr[j]
+
+                CMPLE(r6, r7, r8)   | r8 = a[i] <= a[j]
+                BT(r8, NEXT_J)
+
+                ST(r7, ARRAY, r4)   | a[i] = a[j]
+                ST(r6, ARRAY, r5)   | a[j] = a[i]
+
+NEXT_J:         ADDC(r2, 1, r2)     | j++
+                BR(INNER_LOOP)
+
+NEXT_I:         ADDC(r1, 1, r1)     | i++
+                BR(OUTER_LOOP)
+
+DONE:           HALT()
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+. = 0x100
+
+ARRAY:  LONG(7)             | <-- length of the array (N)
+        LONG(5)             | <-- first element of the array
+        LONG(7)
+        LONG(8)
+        LONG(6)
+        LONG(4)
+        LONG(9)
+        LONG(3)             | <-- last element of the array      

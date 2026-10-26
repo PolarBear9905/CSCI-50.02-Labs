@@ -1,0 +1,65 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| This sample .uasm program processes an array of integers and computes
+| their total sum.
+|
+| Important notes:
+| 1. As usual, replace this comment block with the specific lab number that
+|    you are submitting, along with your group name and member names in
+|    lastname-firstname alphabetical order.
+| 2. For Lab 7, you are expected to mark the data portions of your program
+|    using labels, as demonstrated below using the labels INPUT: and OUTPUT:.
+| 3. While this sample program should work fine with most user inputs, there
+|    is an edge case that will cause this program to fail catastrophically.
+|    (Can you figure it out?)
+|
+| Happy hacking! - eric
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm          | include the standard predefined macros
+
+| Find the sum of odd and even numbers
+                LD(r31, INPUT, r0)  | r0 = array length (N)
+                ADDC(r31, 1, r1)    | r1 = loop index (i = 1)
+                ADDC(r31, 0, r2)    | r2 = even sum
+                ADDC(r31, 0, r3)    | r3 = odd sum
+
+                CMPLEC(r0, 0, r4)   | check if length is 0 or negative 
+                BT(r4, DONE)        | true -> DONE
+
+LOOP:           CMPLE(r1, r0, r4)
+                BEQ(r4, DONE, r31)
+                
+                SHLC(r1, 2, r4)     | r4 = 4*i
+                LD(r4, INPUT, r4)   | r4 = arr[i]
+                ANDC(r4, 1, r5)     | r5 = check if last bit is 1 
+                BNE(r5, IS_ODD)     | go to odd if r5 != 0
+
+IS_EVEN:        ADD(r2, r4, r2)     | even sum += arr[i]
+                BR(NEXT)
+
+IS_ODD:         ADD(r3, r4, r3)     | odd sum += arr[i]
+
+NEXT:           ADDC(r1, 1, r1)     | i++
+                CMPLE(r1, r0, r6)   | r6 = i <= N
+                BT(r6, LOOP)
+
+DONE:           ST(r2, EVENSUM, r31)| check at memory 0x124
+                ST(r3, ODDSUM, r31) | check at memory 0x120
+                HALT()              | finish execution
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+. = 0x100
+
+INPUT:  LONG(7)             | <-- length of the array (N)
+        LONG(5)             | <-- first element of the array
+        LONG(7)
+        LONG(8)
+        LONG(6)
+        LONG(4)
+        LONG(9)
+        LONG(3)             | <-- last element of the array
+
+ODDSUM: LONG(0)
+EVENSUM: LONG(0)
