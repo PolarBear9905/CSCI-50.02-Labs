@@ -1,0 +1,164 @@
+*****************************************************************************
+
+* LAB #6
+* AMP
+* - Chua, Phoebe
+* - Mabini, Ammon
+* - Verzosa, Matthew
+
+*****************************************************************************
+
+* Imports
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+*****************************************************************************
+
+* Full adder and 32-bit ripple-carry adder
+* We chose this version because it is faster than the version below, 
+* which uses mux to lessen gates but has more delay
+.subckt fa a b c_in sum c_out
+    Xxor1 a b t1 xor2
+    Xnand1 c_in t1 t2 nand2
+    Xnand2 a b t3 nand2
+    Xxor2 t1 c_in sum xor2
+    Xnand3 t2 t3 c_out nand2
+.ends
+
+* * Lessen gates by using mux. If equal inputs then carry = a
+* * If different inputs then carry = c_in
+* * The trade off is gives more delay 
+* .subckt fa a b c_in sum c_out
+*     Xxor1 a b t1 xor2
+*     Xxor2 t1 c_in sum xor2
+*     Xcarry t1 a c_in c_out mux2
+* .ends
+
+* 32-bit ripple-carry adder
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+    Xsum a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+.ends
+
+*****************************************************************************
+* 32-bit adder/subtractor
+* op0: 0 = add, 1 = subtract
+*****************************************************************************
+.subckt as32 a[31:0] b[31:0] op0 fas[31:0] n v z
+    * * Previous version of as32
+    * Xinvert b[31:0] binv[31:0] inverter
+    * Xselect op0#32 b[31:0] binv[31:0] operand[31:0] mux2
+
+    * Subtraction: A + ~B + 1
+    * Switched to XOR for add or sub
+    Xoperand b[31:0] op0#32 operand[31:0] xor2
+    Xadd a[31:0] operand[31:0] op0 fas[31:0] carry[31:30] add32
+    .connect fas31 n
+    Xoverflow carry30 carry31 v xor2
+
+    * z = 1 when all result bits are zero
+    Xzero0 fas3 fas2 fas1 fas0 group0 nor4
+    Xzero1 fas7 fas6 fas5 fas4 group1 nor4
+    Xzero2 fas11 fas10 fas9 fas8 group2 nor4
+    Xzero3 fas15 fas14 fas13 fas12 group3 nor4
+    Xzero4 fas19 fas18 fas17 fas16 group4 nor4
+    Xzero5 fas23 fas22 fas21 fas20 group5 nor4
+    Xzero6 fas27 fas26 fas25 fas24 group6 nor4
+    Xzero7 fas31 fas30 fas29 fas28 group7 nor4
+    Xupper group7 group6 group5 group4 nonzerohi nand4
+    Xlower group3 group2 group1 group0 nonzerolo nand4
+    Xallzero nonzerohi nonzerolo z nor2
+.ends
+
+*****************************************************************************
+* Signed comparator
+* op[2:1]: 01 = equal, 10 = less than, 11 = less than or equal
+*****************************************************************************
+.subckt cmp32 n v z op[2:1] fcmp[31:0]
+    * n XOR v gives signed less-than, including overflow cases
+    Xless n v less xor2
+    * fcmp0 = (op1 AND z) OR (op2 AND less)
+    Xequal op1 z equalbar nand2
+    Xenabled op2 less lessbar nand2
+    Xcompare equalbar lessbar fcmp0 nand2
+    .connect 0 fcmp[31:1]
+.ends
+
+*****************************************************************************
+* bool32
+*****************************************************************************
+.subckt bool32 a[31:0] b[31:0] op[3:0] fbool[31:0]
+Xmux4 a[31:0] b[31:0] op0#32 op1#32 op2#32 op3#32 fbool[31:0] mux4
+.ends
+
+*****************************************************************************
+* shift32
+*****************************************************************************
+.subckt shift32 a[31:0] b[4:0] op[1:0] fshift[31:0]
+
+* * Our previous version make separate left shift implementation (more gates)
+* Xleft16 b4#32 a[31:0] a[15:0] 0#16 left16[31:0] mux2
+* Xleft8 b3#32 left16[31:0] left16[23:0] 0#8 left8[31:0] mux2
+* Xleft4 b2#32 left8[31:0] left8[27:0] 0#4 left4[31:0] mux2
+* Xleft2 b1#32 left4[31:0] left4[29:0] 0#2 left2[31:0] mux2
+* Xleft1 b0#32 left2[31:0] left2[30:0] 0 left1[31:0] mux2 
+
+* To optimze, we use reverse for left shift, else default for right shift
+Xreverse op0#32 a[0:31] a[31:0] x[31:0] mux2
+
+* Preserve sign bit for arithmetic right shift, else 0
+Xz op1 op0 z and2
+Xfill z a31 fill and2
+
+* Right shift fills with zero or the original sign bit
+Xright16 b4#32 x[31:0] fill#16 x[31:16] right16[31:0] mux2
+Xright8 b3#32 right16[31:0] fill#8 right16[31:8] right8[31:0] mux2
+Xright4 b2#32 right8[31:0] fill#4 right8[31:4] right4[31:0] mux2
+Xright2 b1#32 right4[31:0] fill#2 right4[31:2] right2[31:0] mux2
+Xright1 b0#32 right2[31:0] fill right2[31:1] right1[31:0] mux2
+
+* if op0 == 0 then left, else right
+Xshift op0#32 right1[0:31] right1[31:0] fshift[31:0] mux2
+.ends
+
+*****************************************************************************
+* alu32
+* Contain instantiations of as32, bool32, shift32 and cmp32
+* The output of the selected subcircuit will be passed to the final output
+* Enabled in parallel, mux picks one depending on alufn[5:4] value
+*****************************************************************************
+.subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
+Xas32 a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
+Xcmp32 n v z alufn[2:1] fcmp[31:0] cmp32
+Xbool32 a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
+Xshift32 a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32
+Xselect alufn4#32 alufn5#32 fas[31:0] fbool[31:0] fshift[31:0] fcmp[31:0] f[31:0] mux4
+.ends
+
+*****************************************************************************
+* Instantiation of one alu32 circuit
+*****************************************************************************
+Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
+
+*****************************************************************************
+* Test cases
+*****************************************************************************
+Wa a[31:0] nrz(0v,5.0v,20ns,0ns,.1ns,.1ns)
++ -1 0x55555555 0xAAAAAAAA 1 -2 -1 -1 0x55555555 0 -1 0x55555555 0
++ -1 0x55555555 0 -1 0x55555555 0 -1 0x55555555 0 1 -1 -1 0x55555555 0xAAAAAAAA -1
++ 0x55555555 0xAAAAAAAA -1 -1 15 0 -1 15 0 -1 15 0
+
+Wb b[31:0] nrz(0v,5.0v,20ns,0ns,.1ns,.1ns)
++ 1 0x55555555 0xAAAAAAAA 1 0 -1 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0
++ -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 31 15 0 24 24 31
++ 24 24 31 1 15 -256 1 15 -256 1 15 -256
+
+Wf alufn[5:0] nrz(0v,5.0v,60ns,0ns,.1ns,.1ns)
++ 0 1 24 30 22 26 21 32 33 35 51 53 55
+
+* Plots
+.tran 1000ns
+.plot sd(a[31:0])
+.plot sd(b[31:0])
+.plot sd(alufn[5:0])
+.plot sd(f[31:0])
