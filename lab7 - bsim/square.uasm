@@ -1,0 +1,55 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm          | include the standard predefined macros
+
+| Square every lement in an array
+    ADDC(R31, 0x300, SP)    | SP initialization
+    ADDC(R31, 0, R2)        | R2 = index i = 0
+    LD(R31, len, R3)        | R3 = array length
+
+loop:
+    CMPLT(R2, R3, R4)       | Check if i < len
+    BF(R4, done)            | go to exit if i >= len
+    SHLC(R2, 2, R5)         | R5 = i*4 for byte offset
+    LD(R5, arr, R1)         | R1 = arr[i]
+
+    PUSH(R1)                | Push arr[i] onto stack
+    BR(square, LP)          | Call square function
+    DEALLOCATE(1)           | Pop 1 word off of the stack
+
+    ST(R0, arr, R5)         | Store arr in R0
+    ADDC(R2, 1, R2)         | i++
+    BR(loop)
+
+done: 
+    HALT()
+
+square:
+    | standard prologue
+    PUSH(LP)               
+    PUSH(BP)
+    MOVE(SP, BP)            | Set BP to SP
+    PUSH(R1)
+    
+    | actual code
+    LD(BP, -12, R0)         | Load first argument x into R1
+    MUL(R1, R1, R0)         | R0 = x * x
+
+    | standard epilogue
+    POP(R1)
+    MOVE(BP, SP)
+    POP(BP)
+    POP(LP)
+    JMP(LP)                 | return
+
+| data
+.=0x200
+len: LONG(5)
+arr: LONG(2)
+     LONG(-3)
+     LONG(-9)
+     LONG(0)
+     LONG(10)
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
