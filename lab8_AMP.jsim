@@ -1,0 +1,153 @@
+*****************************************************************************
+
+* LAB #8
+* AMP
+* - Chua, Phoebe
+* - Mabini, Ammon
+* - Verzosa, Matthew
+
+* Lab 7 program used: lab7-1 (1).uasm (odd/even sums), assembled as lab7.bin.
+
+*****************************************************************************
+* Imports
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+* Main memory: instructions and data
+Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
++        vdd  0    0   mema[8:2]  memrd[31:0]
++        0    clk  wr  mema[8:2]  memwd[31:0]
++ $memory width=32 nlocations=128 file="lab7.bin"
+
+* Register file, initially all zero
+Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
++           vdd  0    0     ra2_[4:0]  rd2_[31:0]
++           0    clk  werf  wa[4:0]    wd[31:0]
++ $memory width=32 nlocations=32 contents=(
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++ )
+
+* Disable writes to r31
+Xwa_high wa4 wa3 wa2 wa1 wa_high and4
+Xwa_valid wa_high wa0 wa_not31 nand2
+Xwerf werf_ wa_not31 werf and2
+
+* Control ROM: first 64 entries Z=0, next 64 Z=1
+* Bits: PCSEL, RA2SEL, BSEL, WDSEL, ALUFN, Wr, WERF
+Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
++ $memory width=14 nlocations=128 contents=(
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b00011000000001 0b00110000000010 0b11000000000000 0b10000000000001 0b11000000000000 0b00000000000001 0b01000000000001 0b11000000000000
++   0b00000100000001 0b00000100000101 0b11000000000000 0b11000000000000 0b00000111001101 0b00000111010101 0b00000111011101 0b11000000000000
++   0b00000101100001 0b00000101111001 0b00000101011001 0b11000000000000 0b00000110000001 0b00000110000101 0b00000110001101 0b11000000000000
++   0b00010100000001 0b00010100000101 0b11000000000000 0b11000000000000 0b00010111001101 0b00010111010101 0b00010111011101 0b11000000000000
++   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
++
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b00011000000001 0b00110000000010 0b11000000000000 0b10000000000001 0b11000000000000 0b01000000000001 0b00000000000001 0b11000000000000
++   0b00000100000001 0b00000100000101 0b11000000000000 0b11000000000000 0b00000111001101 0b00000111010101 0b00000111011101 0b11000000000000
++   0b00000101100001 0b00000101111001 0b00000101011001 0b11000000000000 0b00000110000001 0b00000110000101 0b00000110001101 0b11000000000000
++   0b00010100000001 0b00010100000101 0b11000000000000 0b11000000000000 0b00010111001101 0b00010111010101 0b00010111011101 0b11000000000000
++   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
++ )
+
+* Bus connections
+.subckt join S T
+  .connect S T
+.ends
+
+* Control signals
+Xjcontrola control[13:12] pcsel[1:0] join
+Xjcontrolb control11      ra2sel     join
+Xjcontrolc control10      bsel       join
+Xjcontrold control[9:8]   wdsel[1:0] join
+Xjcontrole control[7:2]   alufn[5:0] join
+Xjcontrolf control1       wr         join
+Xjcontrolg control0       werf_      join
+
+* Instruction fields
+Xjinsta inst[31:26] opcode[5:0] join
+Xjinstb inst[25:21] rc[4:0]     join
+Xjinstc inst[20:16] ra[4:0]     join
+Xjinstd inst[15:11] rb[4:0]     join
+Xjinste inst[15:0]  c[15:0]     join
+
+* Temporary PC: scan instructions in sequence
+Xjpc clk[8:2] pc[8:2] join
+.connect 0 pc[1:0]
+
+* Temporary inputs until the final-lab datapath is connected
+.connect vdd clk ra1_[4:0] ra2_[4:0] wa[4:0] wd[31:0] mema[8:0] memwd[31:0]
+* Use .connect vdd z to test the second ROM half
+.connect 0 z
+
+* Group signals for plotting
+Xjdisplaya ra2_b_wdsel[3:0] ra2sel bsel wdsel[1:0] join
+Xjdisplayb wr_werf[2:0]     wr werf_ werf               join
+
+* Simulation and plots
+.tran 1280ns
+.plot pc[8:0]
+.plot betaop(opcode[5:0])
+.plot d(ra[4:0])
+.plot d(rb[4:0])
+.plot d(rc[4:0])
+.plot sd(c[15:0])
+.plot b(pcsel[1:0])
+.plot b(ra2_b_wdsel[3:0])
+.plot b(alufn[5:0])
+.plot b(wr_werf[2:0])
+.plot sd(rd1_[31:0])
+.plot sd(rd2_[31:0])
+.plot sd(wd[31:0])
+.plot d(mema[8:0])
+.plot sd(memrd[31:0])
+.plot sd(memwd[31:0])
+
+*****************************************************************************
+* Answer the following guide questions:
+* a. Why is there an additional Z input (on top of the instruction opcode
+* inputs) in the Xcontrol block?
+* Most instructions are determined by the opcode, but BEQ/BF and BNE/BT 
+* are not. This is why the additional Z input in the Xcontrol block 
+* is needed to run in the PCSEL.
+* BEQ/BF: PCSEL =  01 when Z = 1, otherwise 00 (PC+4).
+* BNE/BT: PCSEL = 01 when Z = 0, otherwise 00.
+* b. Why should invalid instructions’ control logic output be set to the
+* constant 0b11000000000000?
+* What this tell us about the constant:
+* PCSEL = 11 selects the illegal operation (ILLOP) handler address.
+* Wr = 0 and WERF = 0 prevents an invalid opcode to corrupt 
+* data memory or a register.
+* The remaining bits (RA2SEL, BSEL, WDSEL, ALUFN) are 0 to be safe.
+* c. Does your Lab 7 program (that you yourself provided) represent a
+* good number of opcodes that your control logic supports? What’s
+* the functional coverage? (i.e., which opcodes did you implement in
+* your control logic table, and which ones are actually exercised by
+* your Lab 7 program? Is the coverage good?)
+* Our control logic supports LD, ST, JMP, BEQ, BNE, ADD, SUB,
+* CMPEQ, CMPLT, CMPLE, AND, OR, XOR, SHL, SHR, SRA, ADDC, SUBC,
+* CMPEQC, CMPLTC, CMPLEC, ANDC, ORC, XORC, SHLC, SHRC, and SRAC.
+* Our Lab 7 program uses LD, ST, ADD, ADDC, CMPLE, CMPLEC, ANDC,
+* SHLC, BEQ, and BNE. BT uses BNE, while BR uses BEQ, so these
+* do not count as additional opcodes.
+* The functional coverage is 10 out of 27 opcodes, or about 37.0%.
+* If HALT is also counted, it is 11 out of 28, or about 39.3%.
+* This covers loads, stores, branches, and some ALU operations,
+* but it is not enough to test all of the control logic.
+* JMP, SUB, CMPEQ, CMPLT, AND, OR, XOR, SHL, SHR, SRA, SUBC,
+* CMPEQC, CMPLTC, ORC, XORC, SHRC, and SRAC are not used.
+* More programs using these opcodes are needed for better coverage.
+
+
+
+
+
