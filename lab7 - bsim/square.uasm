@@ -32,7 +32,7 @@ square:
     PUSH(R1)
     
     | actual code
-    LD(BP, -12, R0)         | Load first argument x into R1
+    LD(BP, -12, R1)         | Load first argument x into R1
     MUL(R1, R1, R0)         | R0 = x * x
 
     | standard epilogue
