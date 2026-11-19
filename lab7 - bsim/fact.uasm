@@ -2,7 +2,8 @@
 
 .include beta.uasm
 
-| Fact 
+| Recursive Factorial
+| returns n!
         ADDC(R31, 0x300, SP)  | SP initialization
         LD(R31, x, R1)        | start of y = fact(x)
         PUSH(R1)              | push args in reverse order
@@ -47,9 +48,9 @@ factEnd:    POP(R3)
             POP(R1)
 
         | pop BP and LP
-        POP( BP )
-        POP( LP )
-        JMP( LP )           | return
+        POP(BP)
+        POP(LP)
+        JMP(LP)           | return
 
 
 | data

@@ -2,7 +2,9 @@
 
 .include beta.uasm          | include the standard predefined macros
 
-| Recursive Fibonacci
+| Recursive Fibonacci 
+| 0 = 1st element = fib(1)
+| 1 = 2nd and 3rd elements = fib(2) or fib(3)
         ADDC(R31, 0x200, SP)    | SP initialization
         LD(R31, n, R0)          | R0 = n
         PUSH(R0)
@@ -22,7 +24,7 @@ fib:
         | actual code
         LD(BP, -12, R1)         | R1 = n
 
-        CMPLEC(R1, 1, R0)       | n <= 1
+        CMPLEC(R1, 2, R0)       | n <= 2
         BT(R0, base_case)
 
         | calculate fib(n-1)
@@ -43,7 +45,8 @@ fib:
         BR(fib_exit)
 
 base_case:
-        MOVE(R1, R0)            | fib(0) = 0, fib(1) = 1
+        SUBC(R1, 1, R0)         | fib(1) = 0, fib(2) = 1
+
 
 fib_exit:
         | standard epilogue
