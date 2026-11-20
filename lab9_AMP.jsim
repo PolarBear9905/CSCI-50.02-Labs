@@ -1,0 +1,251 @@
+*****************************************************************************
+
+* LAB #9
+* AMP
+* - Chua, Phoebe
+* - Mabini, Ammon
+* - Verzosa, Matthew
+
+* Lab 7 program used: lab7-1.uasm (odd/even sums), assembled as lab7.bin.
+
+*****************************************************************************
+* Imports
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+* Datapath clock: 20ns period
+* Your grade ceiling is 95% if it runs with clk3 or slower
+* Your grade ceiling is 100% if it runs with clk2
+.connect clk2 clk 
+
+
+* Main memory: instructions and data
+Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
++        vdd  0    0   mema[8:2]  memrd[31:0]
++        0    clk  wr  mema[8:2]  memwd[31:0]
++ $memory width=32 nlocations=128 file="lab7.bin"
+
+* Register file, initially all zero
+Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
++           vdd  0    0     ra2_[4:0]  rd2_[31:0]
++           0    clk  werf  wa[4:0]    wd[31:0]
++ $memory width=32 nlocations=32 contents=(
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++ )
+
+* r31 = 0
+Xwa_high wa4 wa3 wa2 wa1 wa_high and4
+Xwa_valid wa_high wa0 wa_not31 nand2
+Xwerf werf_ wa_not31 werf and2
+
+* Control ROM
+Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
++ $memory width=14 nlocations=128 contents=(
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b00011000000001 0b00110000000010 0b11000000000000 0b10000000000001 0b11000000000000 0b00000000000001 0b01000000000001 0b11000000000000
++   0b00000100000001 0b00000100000101 0b11000000000000 0b11000000000000 0b00000111001101 0b00000111010101 0b00000111011101 0b11000000000000
++   0b00000101100001 0b00000101111001 0b00000101011001 0b11000000000000 0b00000110000001 0b00000110000101 0b00000110001101 0b11000000000000
++   0b00010100000001 0b00010100000101 0b11000000000000 0b11000000000000 0b00010111001101 0b00010111010101 0b00010111011101 0b11000000000000
++   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
++
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b00011000000001 0b00110000000010 0b11000000000000 0b10000000000001 0b11000000000000 0b01000000000001 0b00000000000001 0b11000000000000
++   0b00000100000001 0b00000100000101 0b11000000000000 0b11000000000000 0b00000111001101 0b00000111010101 0b00000111011101 0b11000000000000
++   0b00000101100001 0b00000101111001 0b00000101011001 0b11000000000000 0b00000110000001 0b00000110000101 0b00000110001101 0b11000000000000
++   0b00010100000001 0b00010100000101 0b11000000000000 0b11000000000000 0b00010111001101 0b00010111010101 0b00010111011101 0b11000000000000
++   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
++ )
+
+* Bus connections
+.subckt join S T
+  .connect S T
+.ends
+
+* Control signals
+Xjcontrola control[13:12] pcsel[1:0] join
+Xjcontrolb control11      ra2sel     join
+Xjcontrolc control10      bsel       join
+Xjcontrold control[9:8]   wdsel[1:0] join
+Xjcontrole control[7:2]   alufn[5:0] join
+Xjcontrolf control1       wr_ctrl    join
+Xjcontrolg control0       werf_ctrl  join
+
+* Instruction fields
+Xjinsta inst[31:26] opcode[5:0] join
+Xjinstb inst[25:21] rc[4:0]     join
+Xjinstc inst[20:16] ra[4:0]     join
+Xjinstd inst[15:11] rb[4:0]     join
+Xjinste inst[15:0]  c[15:0]     join
+
+*****************************************************************
+* PCSEL mux
+
+* ILLOP vector (address 4)
+.connect 0 illop[31:3]
+.connect 0 illop[1:0]
+.connect vdd illop2
+
+* pcsel
+Xpcsel pcsel0#32 pcsel1#32 pc4[31:0] branch[31:0] jmp[31:0] illop[31:0] npc[31:0] mux4
+
+
+* PROGRAM COUNTER (PC)                       
+* 
+
+* JUMP TARGET (JT)                         
+* 
+
+
+* BRANCH TARGET (PC + 4 + 4*SEXT(c)) C<15:0> <<2
+* c15#14 = sign extension copies of bit c15
+* c[15:0] = 16-bit literal
+* 0#2 left shift by 2 bits
+Xbranch pc4[31:0] c15#14 c[15:0] 0#2 0 branch[31:0] branch_out[31:30] add32 
+
+
+* RESET LOGIC    
+Wreset reset nrz(0, 5, 10ns, 0ns, 0.001ns, 0.001ns) 1 0
+Xreset_pc   reset#32  npc[31:0]   0#32  npc_[31:0]      mux2
+Xreset_wr   reset     wr_ctrl     0     wr              mux2
+Xreset_werf reset     werf_ctrl   0     werf_           mux2
+
+
+* RA2SEL, BSEL, WDSEL muxes
+* Register file address
+Xjra1 ra[4:0] ra1_[4:0] join
+Xjwa  rc[4:0] wa[4:0]   join
+* ra2sel: 0 = rb, 1 = rc (needed for ST)
+Xra2sel ra2sel#5 rb[4:0] rc[4:0] ra2_[4:0] mux2
+
+* ALU operands
+Xjalua rd1_[31:0] a[31:0] join
+* bsel: 0 = Reg[rb], 1 = SEXT(c)
+Xbsel bsel#32 rd2_[31:0] c15#16 c[15:0] b[31:0] mux2
+
+* Data memory
+Xjmema  f[8:0]      mema[8:0]    join
+Xjmemwd rd2_[31:0]  memwd[31:0]  join
+
+* wdsel: 00 = PC+4, 01 = ALU, 10 = MEM, 11 = (unused, ALU)
+Xwdsel wdsel0#32 wdsel1#32 pc4[31:0] f[31:0] memrd[31:0] f[31:0] wd[31:0] mux4
+
+* Z
+Xzr0 rd1_3  rd1_2  rd1_1  rd1_0  zg0 nor4
+Xzr1 rd1_7  rd1_6  rd1_5  rd1_4  zg1 nor4
+Xzr2 rd1_11 rd1_10 rd1_9  rd1_8  zg2 nor4
+Xzr3 rd1_15 rd1_14 rd1_13 rd1_12 zg3 nor4
+Xzr4 rd1_19 rd1_18 rd1_17 rd1_16 zg4 nor4
+Xzr5 rd1_23 rd1_22 rd1_21 rd1_20 zg5 nor4
+Xzr6 rd1_27 rd1_26 rd1_25 rd1_24 zg6 nor4
+Xzr7 rd1_31 rd1_30 rd1_29 rd1_28 zg7 nor4
+Xzrhi zg7 zg6 zg5 zg4 znzhi nand4
+Xzrlo zg3 zg2 zg1 zg0 znzlo nand4
+Xzfinal znzhi znzlo z nor2
+
+* Group signals for plotting
+Xjdisplaya ra2_b_wdsel[3:0] ra2sel bsel wdsel[1:0] join
+Xjdisplayb wr_werf[2:0]     wr werf_ werf               join
+
+*****************************************************************************
+* Full adder
+.subckt fa a b c_in sum c_out
+Xxor1 a b t1 xor2
+Xnand1 c_in t1 t2 nand2
+Xnand2 a b t3 nand2
+Xxor2 t1 c_in sum xor2
+Xnand3 t2 t3 c_out nand2
+.ends
+
+* 32-bit ripple-carry adder
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+Xsum a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+.ends
+
+* 32-bit adder/subtractor
+.subckt as32 a[31:0] b[31:0] op0 fas[31:0] n v z
+Xoperand b[31:0] op0#32 operand[31:0] xor2
+Xadd a[31:0] operand[31:0] op0 fas[31:0] carry[31:30] add32
+.connect fas31 n
+Xoverflow carry30 carry31 v xor2
+
+Xzero0 fas3 fas2 fas1 fas0 group0 nor4
+Xzero1 fas7 fas6 fas5 fas4 group1 nor4
+Xzero2 fas11 fas10 fas9 fas8 group2 nor4
+Xzero3 fas15 fas14 fas13 fas12 group3 nor4
+Xzero4 fas19 fas18 fas17 fas16 group4 nor4
+Xzero5 fas23 fas22 fas21 fas20 group5 nor4
+Xzero6 fas27 fas26 fas25 fas24 group6 nor4
+Xzero7 fas31 fas30 fas29 fas28 group7 nor4
+Xupper group7 group6 group5 group4 nonzerohi nand4
+Xlower group3 group2 group1 group0 nonzerolo nand4
+Xallzero nonzerohi nonzerolo z nor2
+.ends
+
+* Comparator
+.subckt cmp32 n v z op[2:1] fcmp[31:0]
+Xless n v less xor2
+Xequal op1 z equalbar nand2
+Xenabled op2 less lessbar nand2
+Xcompare equalbar lessbar fcmp0 nand2
+.connect 0 fcmp[31:1]
+.ends
+
+* Bitwise Boolean
+.subckt bool32 a[31:0] b[31:0] op[3:0] fbool[31:0]
+Xmux4 a[31:0] b[31:0] op0#32 op1#32 op2#32 op3#32 fbool[31:0] mux4
+.ends
+
+* Shift
+.subckt shift32 a[31:0] b[4:0] op[1:0] fshift[31:0]
+Xreverse op0#32 a[0:31] a[31:0] x[31:0] mux2
+Xz op1 op0 z and2
+Xfill z a31 fill and2
+
+* Right shift fills with zero or the original sign bit
+Xright16 b4#32 x[31:0] fill#16 x[31:16] right16[31:0] mux2
+Xright8 b3#32 right16[31:0] fill#8 right16[31:8] right8[31:0] mux2
+Xright4 b2#32 right8[31:0] fill#4 right8[31:4] right4[31:0] mux2
+Xright2 b1#32 right4[31:0] fill#2 right4[31:2] right2[31:0] mux2
+Xright1 b0#32 right2[31:0] fill right2[31:1] right1[31:0] mux2
+
+Xshift op0#32 right1[0:31] right1[31:0] fshift[31:0] mux2
+.ends
+
+* alu32
+.subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
+Xas32 a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
+Xcmp32 n v z alufn[2:1] fcmp[31:0] cmp32
+Xbool32 a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
+Xshift32 a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32
+Xselect alufn4#32 alufn5#32 fas[31:0] fbool[31:0] fshift[31:0] fcmp[31:0] f[31:0] mux4
+.ends
+
+* Instantiation of one alu32 circuit
+Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
+
+* Simulation and plots
+.tran 2000ns
+.plot pc[8:0]
+.plot betaop(opcode[5:0])
+.plot d(ra[4:0])
+.plot d(rb[4:0])
+.plot d(rc[4:0])
+.plot sd(c[15:0])
+.plot b(pcsel[1:0])
+.plot b(ra2_b_wdsel[3:0])
+.plot b(alufn[5:0])
+.plot b(wr_werf[2:0])
+.plot sd(rd1_[31:0])
+.plot sd(rd2_[31:0])
+.plot sd(wd[31:0])
+.plot d(mema[8:0])
+.plot sd(memrd[31:0])
+.plot sd(memwd[31:0])
