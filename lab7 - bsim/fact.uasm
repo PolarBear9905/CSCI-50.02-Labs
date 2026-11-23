@@ -1,0 +1,59 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm
+
+| Recursive Factorial
+| returns n!
+        ADDC(R31, 0x300, SP)  | SP initialization
+        LD(R31, x, R1)        | start of y = fact(x)
+        PUSH(R1)              | push args in reverse order
+        BR(fact, LP)          | actual function call
+        SUBC(SP, 4, SP)       | remove args from stack / can also use DEALLOCATE(1)
+        ST(R0, y, R31)        | end of y = fact(x)
+        HALT()
+
+
+fact: | IMPORTANT: R0 contains return value, so do NOT clobber 
+      |or restore it at any time except for the function's return value
+
+        PUSH(LP)
+        PUSH(BP)
+        ADDC(SP, 0, BP)     | set BP to SP
+        
+        | push local/temp variables and clobbered registers
+        PUSH(R1)
+        PUSH(R2)
+        PUSH(R3)
+
+        | actual code
+        LD(BP, -12, R1)
+        CMPLTC(R1, 2, R3)
+        BEQ(R3, factRecurse)
+        ADDC(R31, 1, R0)
+        BR(factEnd)
+        
+factRecurse:    ADDC(R1, 0, R2)
+                SUBC(R1, 1, R1)
+
+        | recursive fact call; note similarity to initial fact call
+        PUSH(R1)
+        BR(fact, LP)
+        SUBC(SP, 4, SP)
+        MUL(R2, R0, R0)
+
+        | pop to restore clobbered registers and deallocate space used by local/temp variables
+        | IMPORTANT: note order of pushes and pops
+factEnd:    POP(R3)
+            POP(R2)
+            POP(R1)
+
+        | pop BP and LP
+        POP(BP)
+        POP(LP)
+        JMP(LP)           | return
+
+
+| data
+.=0x200
+x: LONG(5)
+y: LONG(0)

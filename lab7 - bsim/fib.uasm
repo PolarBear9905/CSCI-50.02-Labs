@@ -1,0 +1,67 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm          | include the standard predefined macros
+
+| Recursive Fibonacci 
+| 0 = 1st element = fib(1)
+| 1 = 2nd and 3rd elements = fib(2) or fib(3)
+        ADDC(R31, 0x200, SP)    | SP initialization
+        LD(R31, n, R0)          | R0 = n
+        PUSH(R0)
+        BR(fib, LP)      
+        DEALLOCATE(1)           | Pop 1 word off of the stack
+        ST(R0, result, R31)     | result = fib(n)
+        HALT() 
+
+fib:   
+        | standard prologue
+        PUSH(LP)               
+        PUSH(BP)
+        MOVE(SP, BP)            | Set BP to SP
+        PUSH(R1)                | for n
+        PUSH(R2)                | for n-1
+        
+        | actual code
+        LD(BP, -12, R1)         | R1 = n
+
+        CMPLEC(R1, 2, R0)       | n <= 2
+        BT(R0, base_case)
+
+        | calculate fib(n-1)
+        SUBC(R1, 1, R0)         | R0 = n - 1
+        PUSH(R0)
+        BR(fib, LP)
+        DEALLOCATE(1)           | Pop 1 word off of the stack
+        MOVE(R0, R2)            | R2 = fib(n-1)
+
+        | calculate fib(n-2)
+        SUBC(R1, 2, R0)         | R0 = n - 2
+        PUSH(R0)
+        BR(fib, LP)
+        DEALLOCATE(1)           | Pop 1 word off of the stack
+
+        | add both recursive results
+        ADD(R2, R0, R0)         | R0 = fib(n-1) + fib(n-2)
+        BR(fib_exit)
+
+base_case:
+        SUBC(R1, 1, R0)         | fib(1) = 0, fib(2) = 1
+
+
+fib_exit:
+        | standard epilogue
+        POP(R2)
+        POP(R1)
+        MOVE(BP, SP)
+        POP(BP)
+        POP(LP)
+        JMP(LP)                 | return
+
+
+| data
+.= 0x200
+n:  LONG(13)                    | <-- input n
+result: LONG(0)
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||

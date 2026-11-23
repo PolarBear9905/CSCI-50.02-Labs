@@ -1,0 +1,55 @@
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.include beta.uasm          | include the standard predefined macros
+
+| Average
+    | average(y, z)
+    ADDC(R31, 0x300, SP)    | SP initialization
+    LD(R31, z, R1)          | R1 = z to load second argument
+    PUSH(R1)                | Push z onto stack
+    LD(R31, y, R1)          | R1 = y to load first argument
+    PUSH(R1)                | Push y onto stack
+    BR(average, LP)         | Call average function
+    DEALLOCATE(2)           | Pop 2 words off of the stack
+
+    MULC(R0, 2, R0)         | R0 = average(y, z) * 2
+
+    | average(x, average(y, z) * 2)
+    PUSH(R0)                | Push second argument
+    LD(R31, x, R1)          | R1 = x to load first argument
+    PUSH(R1)                | Push x onto stack
+    BR(average, LP)         | Call average function
+    DEALLOCATE(2)           | Pop 2 words off of the stack 
+
+    ST(R0, result, R31)     | Store result in R0
+    HALT()
+
+average:
+    | standard prologue
+    PUSH(LP)               
+    PUSH(BP)
+    MOVE(SP, BP)            | Set BP to SP
+    PUSH(R1)
+    
+    | actual code
+    LD(BP, -12, R0)         | Load first argument a
+    LD(BP, -16, R1)         | Load second argument b
+    ADD(R0, R1, R0)         | R0 = a + b
+    DIVC(R0, 2, R0)         | R0 = (a + b) / 2
+
+    | standard epilogue
+    POP(R1)
+    MOVE(BP, SP)
+    POP(BP)
+    POP(LP)
+    JMP(LP)                 | return
+
+| data
+.=0x200
+x: LONG(10)
+y: LONG(3)
+z: LONG(4)
+result: LONG(0)
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
