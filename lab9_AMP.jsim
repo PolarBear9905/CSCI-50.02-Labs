@@ -1,30 +1,26 @@
 *****************************************************************************
-
 * LAB #9
 * AMP
 * - Chua, Phoebe
 * - Mabini, Ammon
 * - Verzosa, Matthew
-
-* Lab 7 program used: lab7-1.uasm (odd/even sums), assembled as lab7.bin.
-
 *****************************************************************************
+
 * Imports
 .include "8clocks.jsim"
 .include "nominal.jsim"
 .include "stdcell.jsim"
 
-* Datapath clock: 20ns period
-* Your grade ceiling is 95% if it runs with clk3 or slower
-* Your grade ceiling is 100% if it runs with clk2
+* Datapath clock (10ns)
 .connect clk2 clk 
-
 
 * Main memory: instructions and data
 Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
 +        vdd  0    0   mema[8:2]  memrd[31:0]
 +        0    clk  wr  mema[8:2]  memwd[31:0]
 + $memory width=32 nlocations=128 file="lab7.bin"
+* given that the .bin file that will be used 
+* for testing is named "lab7.bin"
 
 * Register file, initially all zero
 Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
@@ -37,7 +33,7 @@ Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
 +   0 0 0 0 0 0 0 0
 + )
 
-* R31 Write Protection
+* R31 Write Protection (always 0)
 Xwa_high  wa4 wa3 wa2 wa1 wa_high and4
 Xwa_is31 wa_high wa0 wa_is31 and2
 Xreset_werf_ wa_is31 werf_ 0 werf mux2
@@ -89,24 +85,18 @@ Xjinste inst[15:0]  c[15:0]     join
 *****************************************************************
 * PCSEL mux
 
-* ILLOP vector (address 4)
-.connect 0 illop[31:3]
-.connect 0 illop[1:0]
-.connect vdd illop2
-
 * pcsel
-Xpcsel pcsel0#32 pcsel1#32 pc4[31:0] branch[31:0] jmp[31:0] illop[31:0] npc[31:0] mux4
+Xpcsel pcsel0#32 pcsel1#32 pc4[31:0] branch[31:0] jmp[31:0] pc[31:0] npc[31:0] mux4
 
+* PROGRAM COUNTER (PC) + pc reset
+Xpcreset reset#32 npc[31:0] 0#32 pc_d[31:0] mux2
+Xpc pc_d[31:0] clk#32 pc[31:0] dreg
 
-* PROGRAM COUNTER (PC)                       
-Xpc npc_[31:0] clk#32 pc[31:0] dreg
-
-* <PC> + 4
+* PC + 4
 Xpc4 pc[31:0] 0#29 vdd 0#2 0 pc4[31:0] pc4_cout[31:30] add32
 
 * JUMP TARGET (JT) should clear the low 2 bits bec main memory uses pc[8:2]                       
-Xjt rd1_[31:2] jmp[31:2] join
-.connect  0 jmp[1:0]
+Xjt rd1_[31:2] 0#2 jmp[31:0] join
 
 * BRANCH TARGET (PC + 4 + 4*SEXT(c)) C<15:0> <<2
 * c15#14 = sign extension copies of bit c15
@@ -114,31 +104,28 @@ Xjt rd1_[31:2] jmp[31:2] join
 * 0#2 left shift by 2 bits
 Xbranch pc4[31:0] c15#14 c[15:0] 0#2 0 branch[31:0] branch_out[31:30] add32 
 
-
-* RESET LOGIC    
-Wreset reset nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns) 1 0
-Xreset_pc   reset#32  npc[31:0]   0#32  npc_[31:0]      mux2
+* RESET for wr & werf    
+Wreset reset nrz(0, 5, 10ns, 0ns, 0.001ns, 0.001ns) 1 0
 Xreset_wr   reset     control1    0     wr              mux2
 Xreset_werf reset     control0    0     werf_            mux2
 
 
 * RA2SEL, BSEL, WDSEL muxes
-* Register file address
+* ra2sel is 1 if ST
 Xjra1 ra[4:0] ra1_[4:0] join
 Xjwa  rc[4:0] wa[4:0]   join
-* ra2sel: 0 = rb, 1 = rc (needed for ST)
 Xra2sel ra2sel#5 rb[4:0] rc[4:0] ra2_[4:0] mux2
 
 * ALU operands
+* BSEL 1 if using constant & 0 if using registers
 Xjalua rd1_[31:0] a[31:0] join
-* bsel: 0 = Reg[rb], 1 = SEXT(c)
 Xbsel bsel#32 rd2_[31:0] c15#16 c[15:0] b[31:0] mux2
 
 * Data memory
 Xjmema  f[8:0]      mema[8:0]    join
 Xjmemwd rd2_[31:0]  memwd[31:0]  join
 
-* wdsel: 00 = PC+4, 01 = ALU, 10 = MEM, 11 = (unused, ALU)
+* wdsel: 0 = PC+4, 1 = ALU, 2 = MEM, 11 = (unused, ALU)
 Xwdsel wdsel0#32 wdsel1#32 pc4[31:0] f[31:0] memrd[31:0] f[31:0] wd[31:0] mux4
 
 * Z checker (this can be instantiated with 32-bit 0 checker)
@@ -247,7 +234,7 @@ Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
 *****************************************************************************
 * Simulation and plots
 *****************************************************************************
-.tran 2000ns
+.tran 5000ns
 .plot pc[8:0]
 .plot betaop(opcode[5:0])
 .plot d(ra[4:0])
@@ -264,3 +251,10 @@ Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
 .plot d(mema[8:0])
 .plot sd(memrd[31:0])
 .plot sd(memwd[31:0])
+* .plot clk
+* .plot reset
+* .plot z
+* .plot sd(npc[31:0])
+* .plot sd(jmp[31:0])
+* .plot sd(pc4[31:0])
+* .plot sd(branch[31:0])
